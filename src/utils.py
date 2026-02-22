@@ -6,6 +6,7 @@ import pandas as pd
 import dill
 from src.exception import CustomException
 from sklearn.metrics import r2_score
+from sklearn.model_selection import GridSearchCV
 
 
 def save_obj(file_path, obj):
@@ -19,12 +20,22 @@ def save_obj(file_path, obj):
         raise CustomException(e, sys)
 
 
-def evaluate_models(X_train, y_train, X_test, y_test, models):
+def evaluate_models(X_train, y_train, X_test, y_test, models, param):
     try:
         report = {}
 
-        for i in range(len(list(models))):
-            model = list(models.values())[i]
+        for model_name, model in models.items():
+            para = param.get(model_name, {})
+
+            if para:
+                try:
+                    gs = GridSearchCV(model, para, cv=3)
+                    gs.fit(X_train, y_train)
+                    model.set_params(**gs.best_params_)
+                except AttributeError as e:
+                    # Some third-party estimators can fail sklearn tag checks.
+                    if "__sklearn_tags__" not in str(e):
+                        raise
 
             model.fit(X_train, y_train)
 
@@ -34,7 +45,7 @@ def evaluate_models(X_train, y_train, X_test, y_test, models):
             train_model_score = r2_score(y_train, y_train_pred)
             test_model_score = r2_score(y_test, y_test_pred)
 
-            report[list(models.keys())[i]] = test_model_score
+            report[model_name] = test_model_score
 
         return report
 
